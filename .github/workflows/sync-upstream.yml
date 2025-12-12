@@ -1,0 +1,47 @@
+name: Sync upstream
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  UPSTREAM_REPO: wzdnzd/aggregator
+  TARGET_BRANCH: main
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ env.TARGET_BRANCH }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: git remote add upstream https://github.com/${{ env.UPSTREAM_REPO }}.git
+
+      - name: Fetch upstream changes
+        run: git fetch upstream ${{ env.TARGET_BRANCH }}
+
+      - name: Reconcile fork with upstream
+        run: |
+          git checkout ${{ env.TARGET_BRANCH }}
+          if git merge --ff-only upstream/${{ env.TARGET_BRANCH }}; then
+            echo "Fast-forwarded to upstream"
+          else
+            echo "Local history diverged; aligning with upstream state"
+            git reset --hard upstream/${{ env.TARGET_BRANCH }}
+          fi
+
+      - name: Push updates to origin
+        run: git push origin ${{ env.TARGET_BRANCH }} --force-with-lease
